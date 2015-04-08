@@ -176,12 +176,13 @@ def build_func_map(parameter, chunk, coefficients):
             name = func_map[key]
             if name in coefficients:
                 value = coefficients[name]
-                if type(value) == list:
-                    data = numpy.array(value)
-                    shape = [data_length] + [1 for _ in data.shape]
-                    args[key] = numpy.tile(data, shape)
-                else:
-                    args[key] = numpy.tile(value, data_length)
+                args[key] = value
+#                if type(value) == list:
+#                    data = numpy.array(value)
+#                    shape = [data_length] + [1 for _ in data.shape]
+#                    args[key] = numpy.tile(data, shape)
+#                else:
+#                    args[key] = numpy.tile(value, data_length)
             else:
                 raise CoefficientUnavailableException(name)
     return args
