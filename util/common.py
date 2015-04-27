@@ -18,7 +18,7 @@ def log_timing(func):
             start = time.time()
             results = func(*args, **kwargs)
             elapsed = time.time() - start
-            app.logger.debug('Completed method: %s in %.2f', func, elapsed)
+            app.logger.debug('Completed method: %s in %.5f', func, elapsed)
             return results
     else:
         @wraps(func)

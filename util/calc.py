@@ -16,7 +16,7 @@ from util.common import log_timing, StreamKey, TimeRange, CachedParameter, Unkno
     FUNCTION, CoefficientUnavailableException, parse_pdid, UnknownFunctionTypeException, \
     CachedStream, StreamEngineException, StreamUnavailableException, InvalidStreamException
 
-
+@log_timing
 def find_stream(stream_key, streams, distinct_sensors):
     """
     Attempt to find a "related" sensor which provides one of these streams
@@ -81,7 +81,7 @@ def get_needs(streams):
         stream_list.append(d)
     return stream_list
 
-
+@log_timing
 def stretch(times, data, interp_times):
     if len(times) == 1:
         return interp_times, data * len(interp_times)
@@ -93,7 +93,7 @@ def stretch(times, data, interp_times):
         data.append(data[-1])
     return times, data
 
-
+@log_timing
 def interpolate(times, data, interp_times):
     data = numpy.array(data)
 
@@ -107,6 +107,7 @@ def interpolate(times, data, interp_times):
     return interp_times, data
 
 
+@log_timing
 def last_seen(times, data, interp_times):
     time_index = 0
     last = data[0]
@@ -125,6 +126,7 @@ def last_seen(times, data, interp_times):
     return numpy.array(new_data)
 
 
+@log_timing
 def handle_byte_buffer(data, encoding, shape):
     if encoding in ['int8', 'int16', 'int32', 'uint8', 'uint16']:
         format_string = 'i'
@@ -142,7 +144,7 @@ def handle_byte_buffer(data, encoding, shape):
     data = data.reshape(shape)
     return data
 
-
+@log_timing
 def execute_dpa(parameter, kwargs):
     func = parameter.parameter_function
     func_map = parameter.parameter_function_map
@@ -157,7 +159,7 @@ def execute_dpa(parameter, kwargs):
             raise UnknownFunctionTypeException(func.function_type)
         return result
 
-
+@log_timing
 def build_func_map(parameter, chunk, coefficients):
     func_map = parameter.parameter_function_map
     args = {}
@@ -188,7 +190,7 @@ def build_func_map(parameter, chunk, coefficients):
             raise StreamEngineException('Unable to resolve parameter \'%s\' in PD%s %s' % (func_map[key], parameter.id, parameter.name))
     return args
 
-
+@log_timing
 def in_range(frame, times):
     """
     Returns boolean masking array for times in range.
@@ -213,7 +215,7 @@ def in_range(frame, times):
         mask = numpy.logical_and(times >= frame[0], times < frame[1])
     return mask
 
-
+@log_timing
 def build_CC_argument(frames, times):
     sample_value = frames[0]['value']
     if(type(sample_value) == list) :
@@ -231,7 +233,7 @@ def build_CC_argument(frames, times):
 
     return cc
 
-
+@log_timing
 class DataStream(object):
     def __init__(self, stream_key, time_range):
         self.stream_key = stream_key
@@ -251,6 +253,7 @@ class DataStream(object):
         self.terminate = False
         self._initialize()
 
+    @log_timing
     def _initialize(self):
         needs_cc = set()
         for param in self.stream_key.stream.parameters:
@@ -260,13 +263,16 @@ class DataStream(object):
                 needs_cc = needs_cc.union(param.needs_cc)
         self.needs_cc = list(needs_cc)
 
+    @log_timing
     def provides(self, key):
         return key in self.id_map
 
+    @log_timing
     def async_query(self):
         self.future = fetch_data(self.stream_key, self.query_time_range)
         self.future.add_callbacks(callback=self.handle_page, errback=self.handle_error)
 
+    @log_timing
     def handle_page(self, rows):
         self.queue.put(rows)
         if self.future.has_more_pages and not self.terminate:
@@ -274,13 +280,16 @@ class DataStream(object):
         else:
             self.finished_event.set()
 
+    @log_timing
     def terminate_query(self):
         self.terminate = True
 
+    @log_timing
     def handle_error(self, exc):
         self.error = exc
         self.finished_event.set()
 
+    @log_timing
     def _get_chunk(self):
         chunk = self.queue.get()
         if hasattr(chunk, '_asdict'):
@@ -291,6 +300,7 @@ class DataStream(object):
         self.available_time_range.start = self.row_cache[0].time
         self.available_time_range.stop = self.row_cache[-1].time
 
+    @log_timing
     def create_generator(self, parameters):
         """
         generator to return the data from a single chunk
@@ -340,6 +350,7 @@ class DataStream(object):
 
             yield self.data_cache
 
+    @log_timing
     def get_param(self, pdid, time_range):
         if pdid not in self.id_map:
             raise StreamEngineException('Internal error: unable to find parameter in stream')
@@ -358,6 +369,7 @@ class DataStream(object):
         # copy the data in case of interpolation
         return self.data_cache[7]['data'][:], self.data_cache[pdid]['data'][:]
 
+    @log_timing
     def _fill_cache(self, pdid):
         name = self.id_map[pdid]
         if 7 not in self.data_cache:
@@ -376,13 +388,14 @@ class DataStream(object):
             else:
                 self.data_cache[pdid]['data'].append(None)
 
+    @log_timing
     def get_param_interp(self, pdid, interp_times):
         times, data = self.get_param(pdid, TimeRange(interp_times[0], interp_times[-1]))
         times, data = stretch(times, data, interp_times)
         times, data = interpolate(times, data, interp_times)
         return times, data
 
-
+@log_timing
 class StreamRequest(object):
 
     def __init__(self, stream_keys, parameters, coefficients, time_range, needs_only=False, limit=None):
@@ -395,6 +408,7 @@ class StreamRequest(object):
         self.limit = limit
         self._initialize(needs_only)
 
+    @log_timing
     def _initialize(self, needs_only):
         if len(self.stream_keys) == 0:
             abort(400)
@@ -456,6 +470,7 @@ class StreamRequest(object):
         # if not needs_only:
         #     self._abort_if_missing_params()
 
+    @log_timing
     def _abort_if_missing_params(self):
         if len(self.needs_params) > 0:
             app.logger.error('Unable to find needed parameters: %s', self.needs_params)
@@ -476,6 +491,7 @@ class Chunk_Generator(object):
         self.coefficients = None
         self.time_range = None
 
+    @log_timing
     def _create_data_stream(self, stream_key):
         if stream_key.stream is None:
             raise InvalidStreamException('The requested stream does not exist in preload',
@@ -483,14 +499,17 @@ class Chunk_Generator(object):
 
         return DataStream(stream_key, self.time_range)
 
+    @log_timing
     def _query_all(self):
         for stream in self.streams:
             stream.async_query()
 
+    @log_timing
     def _terminate_all(self):
         for stream in self.streams:
             stream.terminate_query()
 
+    @log_timing
     def _calculate(self, parameter, chunk):
         needs = [CachedParameter.from_id(p) for p in parameter.needs if p not in chunk.keys()]
         if parameter in needs:
@@ -510,6 +529,7 @@ class Chunk_Generator(object):
         except StreamEngineException:
             pass
 
+    @log_timing
     def _get_param(self, pdid, chunk):
         for stream in self.streams[1:]:
             if stream.provides(pdid):
@@ -518,6 +538,7 @@ class Chunk_Generator(object):
                     'source': stream.stream_key.as_refdes()
                 }
 
+    @log_timing
     def _execute_dpas_chunk(self, chunk):
         for parameter in self.parameters:
             if parameter.id not in chunk:
@@ -526,6 +547,7 @@ class Chunk_Generator(object):
                 else:
                     self._get_param(parameter.id, chunk)
 
+    @log_timing
     def chunks(self, r):
         self.parameters = r.parameters
         self.coefficients = r.coefficients
@@ -543,6 +565,7 @@ class Particle_Generator(object):
     def __init__(self, generator):
         self.generator = generator
 
+    @log_timing
     def chunk_to_particles(self, stream_key, parameters, chunk):
         pk = stream_key.as_dict()
 
@@ -558,6 +581,7 @@ class Particle_Generator(object):
                     particle[param.name] = value
             yield json.dumps(particle, indent=2)
 
+    @log_timing
     def chunks(self, r):
         count = 0
         yield '[ '
@@ -586,6 +610,7 @@ class NetCDF_Generator(object):
     def __init__(self, generator):
         self.generator = generator
 
+    @log_timing
     def chunks(self, r):
         with tempfile.NamedTemporaryFile() as tf:
             with netCDF4.Dataset(tf.name, 'w', format='NETCDF4') as ncfile:
