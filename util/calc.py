@@ -281,7 +281,7 @@ class DataStream(object):
         if self.future.has_more_pages and not self.terminate:
             self.future.start_fetching_next_page()
         else:
-            app.logger.info('Query complete in %.5 secs', time.time() - self.query_start)
+            app.logger.info('Query complete in %.5f secs', time.time() - self.query_start)
             self.finished_event.set()
 
     @log_timing
