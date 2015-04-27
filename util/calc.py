@@ -8,6 +8,7 @@ from threading import Event
 import numexpr
 import numpy
 from scipy.interpolate import griddata
+import time
 from werkzeug.exceptions import abort
 from engine import app
 from collections import OrderedDict
@@ -251,6 +252,7 @@ class DataStream(object):
         self.times = []
         self.needs_cc = []
         self.terminate = False
+        self.query_start = 0
         self._initialize()
 
     @log_timing
@@ -269,6 +271,7 @@ class DataStream(object):
 
     @log_timing
     def async_query(self):
+        self.query_start = time.time()
         self.future = fetch_data(self.stream_key, self.query_time_range)
         self.future.add_callbacks(callback=self.handle_page, errback=self.handle_error)
 
@@ -278,6 +281,7 @@ class DataStream(object):
         if self.future.has_more_pages and not self.terminate:
             self.future.start_fetching_next_page()
         else:
+            app.logger.info('Query complete in %.5 secs', time.time() - self.query_start)
             self.finished_event.set()
 
     @log_timing
